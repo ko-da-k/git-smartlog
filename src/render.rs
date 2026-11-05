@@ -124,11 +124,14 @@ fn row_message(input: &RenderInput<'_>, id: &CommitId, kind: NodeKind, paint: &P
 
     let mut parts = vec![paint.hash(id.short(), trunk)];
     if let Some(meta) = meta {
-        parts.push(paint.paint(GREEN, &relative_age(input.now - meta.time)));
+        parts.push(paint.paint(GRAY, &relative_age(input.now - meta.time)));
     }
     if let Some(labels) = input.labels.get(id).filter(|l| !l.is_empty()) {
-        let text: Vec<String> = labels.iter().map(Label::text).collect();
-        parts.push(paint.paint(BRIGHT_GREEN, &format!("({})", text.join(", "))));
+        let text: Vec<String> = labels
+            .iter()
+            .map(|label| paint.paint(label.style(), &label.text()))
+            .collect();
+        parts.push(format!("({})", text.join(", ")));
     }
     if let Some(meta) = meta {
         parts.push(if trunk {
@@ -160,6 +163,17 @@ fn relative_age(seconds: i64) -> String {
 }
 
 impl Label {
+    /// Same colors as `git log --decorate`: branches green, tags yellow, remotes red;
+    /// worktrees use HEAD's cyan. All bold.
+    fn style(&self) -> &'static str {
+        match self {
+            Label::Branch { .. } => "1;32",
+            Label::Worktree(_) => "1;36",
+            Label::Tag(_) => "1;33",
+            Label::Remote(_) => "1;31",
+        }
+    }
+
     fn text(&self) -> String {
         match self {
             Label::Branch {
@@ -177,8 +191,7 @@ impl Label {
 }
 
 const DIM: &str = "2";
-const GREEN: &str = "32";
-const BRIGHT_GREEN: &str = "92";
+const GRAY: &str = "90";
 
 /// Applies ANSI styles only when colors are enabled.
 struct Painter(Color);
@@ -370,6 +383,40 @@ mod tests {
             output.contains("(ᐅ main, review@, v1, origin/main)"),
             "{output}"
         );
+    }
+
+    #[test]
+    fn each_label_kind_has_its_own_color() {
+        // Given: t1 に main（HEAD）、worktree review、タグ v1、remote の origin/main がある
+        let dag = dag(&[("t0", &[]), ("t1", &["t0"])]);
+        let mut refs = refs(&[("main", "t1")], "main");
+        refs.worktrees = vec![Worktree {
+            name: "review".into(),
+            head: Some(id("t1")),
+        }];
+        refs.tags = vec![("v1".into(), id("t1"))];
+        refs.remote_branches = vec![("origin/main".into(), id("t1"))];
+
+        // When: 色ありで描く
+        let output = draw(&dag, &refs, &id("t1"), Mode::Default, Color::Always, NOW);
+
+        // Then: git log --decorate と同じく、branch は緑、worktree はシアン、タグは黄、remote は赤（いずれも太字）
+        let expected = "(\x1b[1;32mᐅ main\x1b[0m, \x1b[1;36mreview@\x1b[0m, \
+                        \x1b[1;33mv1\x1b[0m, \x1b[1;31morigin/main\x1b[0m)";
+        assert!(output.contains(expected), "{output:?}");
+    }
+
+    #[test]
+    fn age_is_gray_so_it_differs_from_branch_green() {
+        // Given: 3日前のコミット t1 に main がある
+        let dag = dag(&[("t0", &[]), ("t1", &["t0"])]);
+        let refs = refs(&[("main", "t1")], "main");
+
+        // When: 色ありで描く
+        let output = draw(&dag, &refs, &id("t1"), Mode::Default, Color::Always, NOW);
+
+        // Then: 経過時間は灰色（90）で、branch の緑とは別の色になる
+        assert!(output.contains("\x1b[90m3d\x1b[0m"), "{output:?}");
     }
 
     #[test]
