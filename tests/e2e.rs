@@ -29,7 +29,10 @@ impl TestRepo {
         ));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).expect("create temp dir");
-        let repo = Self { dir, clock: std::cell::Cell::new(0) };
+        let repo = Self {
+            dir,
+            clock: std::cell::Cell::new(0),
+        };
         repo.git(&["init", "--quiet", "--initial-branch=main"]);
         repo
     }
@@ -59,13 +62,22 @@ impl TestRepo {
             "git {args:?} failed: {}",
             String::from_utf8_lossy(&output.stderr)
         );
-        String::from_utf8(output.stdout).expect("utf-8").trim().to_string()
+        String::from_utf8(output.stdout)
+            .expect("utf-8")
+            .trim()
+            .to_string()
     }
 
     /// Creates an empty commit "Sample commit <name>".
     fn commit(&self, name: &str) {
         self.clock.set(self.clock.get() + 1);
-        self.git(&["commit", "--quiet", "--allow-empty", "-m", &format!("Sample commit {name}")]);
+        self.git(&[
+            "commit",
+            "--quiet",
+            "--allow-empty",
+            "-m",
+            &format!("Sample commit {name}"),
+        ]);
     }
 
     fn open(&self) -> GixRepo {
@@ -89,7 +101,10 @@ fn unborn_trunk_is_reported_with_a_fix() {
 
     // Then: trunk の main が見つからないことと、設定方法を伝えるエラーになる
     let message = result.expect_err("should fail").to_string();
-    assert!(message.contains("trunk branch `main` not found"), "{message}");
+    assert!(
+        message.contains("trunk branch `main` not found"),
+        "{message}"
+    );
     assert!(message.contains("smartlog.mainBranch"), "{message}");
 }
 
@@ -98,7 +113,9 @@ fn with_names(repo: &TestRepo, output: &str) -> String {
     let mut result = output.to_string();
     for line in repo.git(&["log", "--all", "--format=%H %s"]).lines() {
         let (hash, subject) = line.split_once(' ').expect("hash and subject");
-        let name = subject.strip_prefix("Sample commit ").expect("sample subject");
+        let name = subject
+            .strip_prefix("Sample commit ")
+            .expect("sample subject");
         result = result.replace(&hash[..7], name);
     }
     result
@@ -184,7 +201,11 @@ fn git_smartlog_runs_binary_on_path_before_alias() {
 
     // Then: alias ではなく git-smartlog が動き、グラフを出力する
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     assert!(!stdout.contains("from-alias"), "{stdout}");
     assert!(stdout.contains("Sample commit t0"), "{stdout}");
 }

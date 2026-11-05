@@ -66,7 +66,11 @@ impl Anchors {
             trunk,
             branches: refs.local_branches.iter().map(|(_, c)| c.clone()).collect(),
             head: refs.head.as_ref().and_then(|h| h.commit()).cloned(),
-            worktree_heads: refs.worktrees.iter().filter_map(|w| w.head.clone()).collect(),
+            worktree_heads: refs
+                .worktrees
+                .iter()
+                .filter_map(|w| w.head.clone())
+                .collect(),
         }
     }
 
@@ -147,7 +151,12 @@ mod tests {
     #[test]
     fn one_branch_shows_unmerged_fork_point_and_trunk_tip() {
         // Given: trunk t0 ← t1、t0 から切った stack-a（a1 ← a2）。HEAD は a2
-        let dag = dag(&[("t0", &[]), ("t1", &["t0"]), ("a1", &["t0"]), ("a2", &["a1"])]);
+        let dag = dag(&[
+            ("t0", &[]),
+            ("t1", &["t0"]),
+            ("a1", &["t0"]),
+            ("a2", &["a1"]),
+        ]);
         let anchors = anchors("t1", &["t1", "a2"], Some("a2"));
 
         // When: 既定のモードで選ぶ
@@ -266,7 +275,12 @@ mod tests {
     #[test]
     fn all_mode_shows_every_trunk_ancestor() {
         // Given: trunk t0 ← t1 ← t2、t0 から切った stack-a（a1）
-        let dag = dag(&[("t0", &[]), ("t1", &["t0"]), ("t2", &["t1"]), ("a1", &["t0"])]);
+        let dag = dag(&[
+            ("t0", &[]),
+            ("t1", &["t0"]),
+            ("t2", &["t1"]),
+            ("a1", &["t0"]),
+        ]);
         let anchors = anchors("t2", &["t2", "a1"], Some("t2"));
 
         // When: All モードで選ぶ
@@ -281,9 +295,17 @@ mod tests {
     #[test]
     fn remote_branches_and_tags_are_not_anchors() {
         // Given: ローカルには main（t1）だけ。remote の origin/feature-r（r1）とタグ v1（v1）がある
-        let dag = dag(&[("t0", &[]), ("t1", &["t0"]), ("r1", &["t0"]), ("v1", &["t0"])]);
+        let dag = dag(&[
+            ("t0", &[]),
+            ("t1", &["t0"]),
+            ("r1", &["t0"]),
+            ("v1", &["t0"]),
+        ]);
         let refs = Refs {
-            head: Some(Head::Branch { name: "main".into(), commit: id("t1") }),
+            head: Some(Head::Branch {
+                name: "main".into(),
+                commit: id("t1"),
+            }),
             local_branches: vec![("main".into(), id("t1"))],
             remote_branches: vec![("origin/feature-r".into(), id("r1"))],
             tags: vec![("v1".into(), id("v1"))],
@@ -304,11 +326,20 @@ mod tests {
         // Given: worktree "review" の HEAD が w1 にあり、worktree "fresh" は unborn
         let dag = dag(&[("t0", &[]), ("t1", &["t0"]), ("w1", &["t0"])]);
         let refs = Refs {
-            head: Some(Head::Branch { name: "main".into(), commit: id("t1") }),
+            head: Some(Head::Branch {
+                name: "main".into(),
+                commit: id("t1"),
+            }),
             local_branches: vec![("main".into(), id("t1"))],
             worktrees: vec![
-                Worktree { name: "review".into(), head: Some(id("w1")) },
-                Worktree { name: "fresh".into(), head: None },
+                Worktree {
+                    name: "review".into(),
+                    head: Some(id("w1")),
+                },
+                Worktree {
+                    name: "fresh".into(),
+                    head: None,
+                },
             ],
             ..Refs::default()
         };

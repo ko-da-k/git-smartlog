@@ -131,7 +131,12 @@ mod tests {
     #[test]
     fn hidden_parent_becomes_ancestor_edge_to_nearest_displayed() {
         // Given: trunk t0 ← t1 ← t2 ← t3 で、表示対象は t0 と t3 だけ（t1, t2 は省略）
-        let dag = dag(&[("t0", &[]), ("t1", &["t0"]), ("t2", &["t1"]), ("t3", &["t2"])]);
+        let dag = dag(&[
+            ("t0", &[]),
+            ("t1", &["t0"]),
+            ("t2", &["t1"]),
+            ("t3", &["t2"]),
+        ]);
         let selection = selection(&["t0", "t3"], &[]);
 
         // When: 辺を作る
@@ -171,7 +176,12 @@ mod tests {
     #[test]
     fn trunk_merge_with_both_parents_displayed_has_two_edges_first_parent_first() {
         // Given: trunk の t2 は t1（第一親）と PR の p1（第二親）のマージで、全員が表示対象（--all 相当）
-        let dag = dag(&[("t0", &[]), ("t1", &["t0"]), ("p1", &["t0"]), ("t2", &["t1", "p1"])]);
+        let dag = dag(&[
+            ("t0", &[]),
+            ("t1", &["t0"]),
+            ("p1", &["t0"]),
+            ("t2", &["t1", "p1"]),
+        ]);
         let selection = selection(&["t0", "t1", "p1", "t2"], &[]);
 
         // When: 辺を作る

@@ -46,7 +46,12 @@ pub fn row_order(dag: &Dag, edges: &HashMap<CommitId, Vec<Edge>>) -> Vec<CommitI
 
 /// Index of the newest commit in `candidates` (ties: smaller id first).
 fn newest(dag: &Dag, candidates: &[&CommitId]) -> usize {
-    let key = |id: &CommitId| (Reverse(dag.meta(id).map_or(i64::MIN, |m| m.time)), id.clone());
+    let key = |id: &CommitId| {
+        (
+            Reverse(dag.meta(id).map_or(i64::MIN, |m| m.time)),
+            id.clone(),
+        )
+    };
     (0..candidates.len())
         .min_by_key(|&i| key(candidates[i]))
         .expect("candidates is not empty")
@@ -61,7 +66,10 @@ mod tests {
     use crate::lanes::testing::select_default;
 
     fn position(order: &[CommitId], name: &str) -> usize {
-        order.iter().position(|c| *c == id(name)).unwrap_or_else(|| panic!("{name} not in order"))
+        order
+            .iter()
+            .position(|c| *c == id(name))
+            .unwrap_or_else(|| panic!("{name} not in order"))
     }
 
     #[test]
@@ -112,8 +120,16 @@ mod tests {
         let order = row_order(&dag, &edges);
 
         // Then: 各 stack のコミットが隣り合い、ほかの stack と混ざらない
-        assert_eq!(position(&order, "b1"), position(&order, "b2") + 1, "{order:?}");
-        assert_eq!(position(&order, "a1"), position(&order, "a2") + 1, "{order:?}");
+        assert_eq!(
+            position(&order, "b1"),
+            position(&order, "b2") + 1,
+            "{order:?}"
+        );
+        assert_eq!(
+            position(&order, "a1"),
+            position(&order, "a2") + 1,
+            "{order:?}"
+        );
     }
 
     #[test]
@@ -127,7 +143,10 @@ mod tests {
 
         for (name, a_time, b_time, expected) in cases {
             let mut dag = Dag::new();
-            let meta = |time| CommitMeta { summary: String::new(), time };
+            let meta = |time| CommitMeta {
+                summary: String::new(),
+                time,
+            };
             dag.insert(id("t0"), vec![], meta(0));
             dag.insert(id("t1"), vec![id("t0")], meta(1));
             dag.insert(id("a1"), vec![id("t0")], meta(*a_time));
@@ -137,7 +156,11 @@ mod tests {
 
             let order = row_order(&dag, &edges);
 
-            let stacks: Vec<&str> = order.iter().map(|c| c.0.as_str()).filter(|c| c.ends_with('1') && !c.starts_with('t')).collect();
+            let stacks: Vec<&str> = order
+                .iter()
+                .map(|c| c.0.as_str())
+                .filter(|c| c.ends_with('1') && !c.starts_with('t'))
+                .collect();
             assert_eq!(stacks, *expected, "case: {name}");
         }
     }

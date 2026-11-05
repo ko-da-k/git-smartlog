@@ -1,7 +1,11 @@
 //! Splitting lanes at branch boundaries.
 //!
-//! A displayed commit is a boundary when an unmerged child points to it and it is
-//! 1. on trunk, 2. has a local branch, or 3. has two or more displayed children.
+//! A displayed commit is a boundary when an unmerged child points to it and it
+//!
+//! 1. is on trunk,
+//! 2. has a local branch, or
+//! 3. has two or more displayed children.
+//!
 //! At a boundary no child sits directly above it; every child is a side lane.
 //! This is done by reserving the boundary's column with renderdag's `reserve`
 //! before the top of each lane is drawn, nearest to trunk first.
@@ -121,10 +125,10 @@ fn boundaries_below<'a>(
 mod tests {
     use super::testing::{heads, select_default};
     use super::*;
+    use crate::dag::testing::id;
     use crate::dag::testing::{dag, ids};
     use crate::edges::build_edges;
     use crate::order::row_order;
-    use crate::dag::testing::id;
     use crate::select::{Anchors, Mode, select};
 
     #[test]
@@ -144,7 +148,13 @@ mod tests {
     #[test]
     fn branch_head_with_unmerged_child_is_a_boundary() {
         // Given: stack-a（a1 ← a2）の上に stack-b（b1）を積んだ
-        let dag = dag(&[("t0", &[]), ("t1", &["t0"]), ("a1", &["t0"]), ("a2", &["a1"]), ("b1", &["a2"])]);
+        let dag = dag(&[
+            ("t0", &[]),
+            ("t1", &["t0"]),
+            ("a1", &["t0"]),
+            ("a2", &["a1"]),
+            ("b1", &["a2"]),
+        ]);
         let selection = select_default(&dag, "t1", &["t1", "a2", "b1"]);
         let edges = build_edges(&dag, &selection);
 
@@ -179,8 +189,18 @@ mod tests {
     #[test]
     fn commit_with_only_trunk_children_is_not_a_boundary() {
         // Given: --all で trunk 全体を表示。t2 は t1 と PR の p1 のマージで、t0 には trunk 側の子が2つ（t1, p1）ある
-        let dag = dag(&[("t0", &[]), ("t1", &["t0"]), ("p1", &["t0"]), ("t2", &["t1", "p1"])]);
-        let anchors = Anchors { trunk: id("t2"), branches: vec![id("t2")], head: Some(id("t2")), worktree_heads: vec![] };
+        let dag = dag(&[
+            ("t0", &[]),
+            ("t1", &["t0"]),
+            ("p1", &["t0"]),
+            ("t2", &["t1", "p1"]),
+        ]);
+        let anchors = Anchors {
+            trunk: id("t2"),
+            branches: vec![id("t2")],
+            head: Some(id("t2")),
+            worktree_heads: vec![],
+        };
         let selection = select(&dag, &anchors, Mode::All);
         let edges = build_edges(&dag, &selection);
 
@@ -194,7 +214,13 @@ mod tests {
     #[test]
     fn lane_top_reserves_boundaries_below_nearest_trunk_first() {
         // Given: t0 から切った stack-a（a1 ← a2）の上に stack-b（b1）を積んだ
-        let dag = dag(&[("t0", &[]), ("t1", &["t0"]), ("a1", &["t0"]), ("a2", &["a1"]), ("b1", &["a2"])]);
+        let dag = dag(&[
+            ("t0", &[]),
+            ("t1", &["t0"]),
+            ("a1", &["t0"]),
+            ("a2", &["a1"]),
+            ("b1", &["a2"]),
+        ]);
         let selection = select_default(&dag, "t1", &["t1", "a2", "b1"]);
         let edges = build_edges(&dag, &selection);
         let order = row_order(&dag, &edges);
@@ -204,13 +230,21 @@ mod tests {
         let result = reservations(&order, &edges, &selection, &bounds);
 
         // Then: 枝の先頭 b1 の行で、trunk に近い t0、次に stack-a の a2 の順に予約する
-        assert_eq!(result, HashMap::from([(id("b1"), vec![id("t0"), id("a2")])]));
+        assert_eq!(
+            result,
+            HashMap::from([(id("b1"), vec![id("t0"), id("a2")])])
+        );
     }
 
     #[test]
     fn reserved_boundary_is_not_reserved_again() {
         // Given: t0 から stack-a（a1）と stack-b（b1）を切った。b1 の方が新しい
-        let dag = dag(&[("t0", &[]), ("t1", &["t0"]), ("a1", &["t0"]), ("b1", &["t0"])]);
+        let dag = dag(&[
+            ("t0", &[]),
+            ("t1", &["t0"]),
+            ("a1", &["t0"]),
+            ("b1", &["t0"]),
+        ]);
         let selection = select_default(&dag, "t1", &["t1", "a1", "b1"]);
         let edges = build_edges(&dag, &selection);
         let order = row_order(&dag, &edges);

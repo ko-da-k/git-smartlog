@@ -120,7 +120,10 @@ fn commit_id(id: impl Into<gix::ObjectId>) -> CommitId {
 
 impl ConfigSource for GixRepo {
     fn get_string(&self, key: &str) -> Option<String> {
-        self.repo.config_snapshot().string(key).map(|v| v.to_string())
+        self.repo
+            .config_snapshot()
+            .string(key)
+            .map(|v| v.to_string())
     }
 }
 
@@ -143,7 +146,9 @@ impl RepoView for GixRepo {
             if dag.contains(&id) {
                 continue;
             }
-            let commit = self.repo.find_commit(gix::ObjectId::from_hex(id.0.as_bytes())?)?;
+            let commit = self
+                .repo
+                .find_commit(gix::ObjectId::from_hex(id.0.as_bytes())?)?;
             let parents: Vec<CommitId> = commit.parent_ids().map(commit_id).collect();
             let meta = CommitMeta {
                 summary: commit.message()?.summary().to_string(),

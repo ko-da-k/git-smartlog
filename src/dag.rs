@@ -47,7 +47,10 @@ impl Dag {
     /// All ancestors of `heads`, including the heads themselves.
     ///
     /// Iterative, so deep histories do not overflow the stack.
-    pub fn ancestors<'a>(&self, heads: impl IntoIterator<Item = &'a CommitId>) -> HashSet<CommitId> {
+    pub fn ancestors<'a>(
+        &self,
+        heads: impl IntoIterator<Item = &'a CommitId>,
+    ) -> HashSet<CommitId> {
         let mut seen = HashSet::new();
         let mut stack: Vec<&CommitId> = heads.into_iter().collect();
         while let Some(id) = stack.pop() {

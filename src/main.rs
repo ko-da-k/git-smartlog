@@ -32,7 +32,9 @@ impl ColorArg {
         match self {
             ColorArg::Always => Color::Always,
             ColorArg::Never => Color::Never,
-            ColorArg::Auto if std::io::stdout().is_terminal() && std::env::var_os("NO_COLOR").is_none() => {
+            ColorArg::Auto
+                if std::io::stdout().is_terminal() && std::env::var_os("NO_COLOR").is_none() =>
+            {
                 Color::Always
             }
             ColorArg::Auto => Color::Never,
@@ -46,6 +48,9 @@ fn main() -> anyhow::Result<()> {
     let mode = if args.all { Mode::All } else { Mode::Default };
     let now = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs() as i64;
 
-    print!("{}", git_smartlog::smartlog(&repo, mode, args.color.resolve(), now)?);
+    print!(
+        "{}",
+        git_smartlog::smartlog(&repo, mode, args.color.resolve(), now)?
+    );
     Ok(())
 }

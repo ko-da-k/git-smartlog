@@ -24,7 +24,10 @@ pub enum NodeKind {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Label {
     /// Local branch; `current` is true when HEAD is on it (shown with `ᐅ`).
-    Branch { name: String, current: bool },
+    Branch {
+        name: String,
+        current: bool,
+    },
     /// Linked worktree's HEAD, shown as `<name>@`.
     Worktree(String),
     Tag(String),
@@ -84,7 +87,13 @@ pub fn labels(refs: &Refs) -> HashMap<CommitId, Vec<Label>> {
 
     for (name, commit) in &refs.local_branches {
         let current = current == Some(name.as_str());
-        add(commit, Label::Branch { name: name.clone(), current });
+        add(
+            commit,
+            Label::Branch {
+                name: name.clone(),
+                current,
+            },
+        );
     }
     for worktree in &refs.worktrees {
         if let Some(commit) = &worktree.head {
@@ -122,7 +131,11 @@ fn row_message(input: &RenderInput<'_>, id: &CommitId, kind: NodeKind, paint: &P
         parts.push(paint.paint(BRIGHT_GREEN, &format!("({})", text.join(", "))));
     }
     if let Some(meta) = meta {
-        parts.push(if trunk { paint.paint(DIM, &meta.summary) } else { meta.summary.clone() });
+        parts.push(if trunk {
+            paint.paint(DIM, &meta.summary)
+        } else {
+            meta.summary.clone()
+        });
     }
 
     let mut message = parts.join(" ");
@@ -149,8 +162,14 @@ fn relative_age(seconds: i64) -> String {
 impl Label {
     fn text(&self) -> String {
         match self {
-            Label::Branch { name, current: true } => format!("ᐅ {name}"),
-            Label::Branch { name, current: false } => name.clone(),
+            Label::Branch {
+                name,
+                current: true,
+            } => format!("ᐅ {name}"),
+            Label::Branch {
+                name,
+                current: false,
+            } => name.clone(),
             Label::Worktree(name) => format!("{name}@"),
             Label::Tag(name) | Label::Remote(name) => name.clone(),
         }
@@ -198,11 +217,21 @@ mod tests {
 
     /// Refs with local `branches` as (name, commit) and HEAD on branch `head`.
     fn refs(branches: &[(&str, &str)], head: &str) -> Refs {
-        let local_branches: Vec<(String, CommitId)> =
-            branches.iter().map(|(n, c)| (n.to_string(), id(c))).collect();
-        let commit = local_branches.iter().find(|(n, _)| n == head).expect("head branch").1.clone();
+        let local_branches: Vec<(String, CommitId)> = branches
+            .iter()
+            .map(|(n, c)| (n.to_string(), id(c)))
+            .collect();
+        let commit = local_branches
+            .iter()
+            .find(|(n, _)| n == head)
+            .expect("head branch")
+            .1
+            .clone();
         Refs {
-            head: Some(Head::Branch { name: head.into(), commit }),
+            head: Some(Head::Branch {
+                name: head.into(),
+                commit,
+            }),
             local_branches,
             ..Refs::default()
         }
@@ -211,7 +240,10 @@ mod tests {
     /// The glyph drawn on the row whose hash is `name`.
     fn glyph_of(output: &str, name: &str) -> char {
         let marker = format!("  {name} ");
-        let line = output.lines().find(|l| l.contains(&marker)).unwrap_or_else(|| panic!("{name}: {output}"));
+        let line = output
+            .lines()
+            .find(|l| l.contains(&marker))
+            .unwrap_or_else(|| panic!("{name}: {output}"));
         let before = &line[..line.find(&marker).unwrap()];
         before.chars().last().expect("glyph")
     }
@@ -219,7 +251,12 @@ mod tests {
     #[test]
     fn glyphs_follow_commit_kind() {
         // Given: trunk t0 ← t1（main）、t0 から切った stack-a（a1 ← a2）。HEAD は stack-a
-        let dag = dag(&[("t0", &[]), ("t1", &["t0"]), ("a1", &["t0"]), ("a2", &["a1"])]);
+        let dag = dag(&[
+            ("t0", &[]),
+            ("t1", &["t0"]),
+            ("a1", &["t0"]),
+            ("a2", &["a1"]),
+        ]);
         let refs = refs(&[("main", "t1"), ("stack-a", "a2")], "stack-a");
 
         // When: 色なしで描く
@@ -235,7 +272,13 @@ mod tests {
     #[test]
     fn no_connector_only_lines_between_linear_commits() {
         // Given: trunk t0 から切った stack-a（a1 ← a2 ← a3）
-        let dag = dag(&[("t0", &[]), ("t1", &["t0"]), ("a1", &["t0"]), ("a2", &["a1"]), ("a3", &["a2"])]);
+        let dag = dag(&[
+            ("t0", &[]),
+            ("t1", &["t0"]),
+            ("a1", &["t0"]),
+            ("a2", &["a1"]),
+            ("a3", &["a2"]),
+        ]);
         let refs = refs(&[("main", "t1"), ("stack-a", "a3")], "main");
 
         // When: 色なしで描く
@@ -243,7 +286,9 @@ mod tests {
 
         // Then: 縦線と空白だけの行（連結行）が1つもない
         assert!(
-            output.lines().all(|l| !l.chars().all(|c| c == '│' || c == ' ')),
+            output
+                .lines()
+                .all(|l| !l.chars().all(|c| c == '│' || c == ' ')),
             "{output}"
         );
     }
@@ -266,7 +311,13 @@ mod tests {
             ("x", &["t3"]),
         ]);
         let refs = refs(
-            &[("main", "t3"), ("feature-x", "x"), ("stack-a", "a3"), ("stack-b", "b3"), ("stack-c", "c2")],
+            &[
+                ("main", "t3"),
+                ("feature-x", "x"),
+                ("stack-a", "a3"),
+                ("stack-b", "b3"),
+                ("stack-c", "c2"),
+            ],
             "feature-x",
         );
 
@@ -292,7 +343,10 @@ mod tests {
 ├─╯
 ◆  t0 3d Sample commit t0
 ";
-        let actual: String = output.lines().map(|l| format!("{}\n", l.trim_end())).collect();
+        let actual: String = output
+            .lines()
+            .map(|l| format!("{}\n", l.trim_end()))
+            .collect();
         assert_eq!(actual, expected, "\n{actual}");
     }
 
@@ -301,7 +355,10 @@ mod tests {
         // Given: t1 に main（HEAD）、worktree review、タグ v1、remote の origin/main がある
         let dag = dag(&[("t0", &[]), ("t1", &["t0"])]);
         let mut refs = refs(&[("main", "t1")], "main");
-        refs.worktrees = vec![Worktree { name: "review".into(), head: Some(id("t1")) }];
+        refs.worktrees = vec![Worktree {
+            name: "review".into(),
+            head: Some(id("t1")),
+        }];
         refs.tags = vec![("v1".into(), id("t1"))];
         refs.remote_branches = vec![("origin/main".into(), id("t1"))];
 
@@ -309,7 +366,10 @@ mod tests {
         let output = draw(&dag, &refs, &id("t1"), Mode::Default, Color::Never, NOW);
 
         // Then: ローカル branch（HEAD は ᐅ 付き）、worktree、タグ、remote の順に並ぶ
-        assert!(output.contains("(ᐅ main, review@, v1, origin/main)"), "{output}");
+        assert!(
+            output.contains("(ᐅ main, review@, v1, origin/main)"),
+            "{output}"
+        );
     }
 
     #[test]
@@ -333,7 +393,13 @@ mod tests {
     #[test]
     fn merged_commit_is_written_under_unmerged_merge() {
         // Given: stack-a の a2 は、a1 と trunk の t1 のマージ
-        let dag = dag(&[("t0", &[]), ("t1", &["t0"]), ("t2", &["t1"]), ("a1", &["t0"]), ("a2", &["a1", "t1"])]);
+        let dag = dag(&[
+            ("t0", &[]),
+            ("t1", &["t0"]),
+            ("t2", &["t1"]),
+            ("a1", &["t0"]),
+            ("a2", &["a1", "t1"]),
+        ]);
         let refs = refs(&[("main", "t2"), ("stack-a", "a2")], "main");
 
         // When: 色なしで描く
@@ -341,7 +407,15 @@ mod tests {
 
         // Then: a2 の行のすぐ下に、取り込んだ t1 が ↑ merge: の行で書かれる
         let lines: Vec<&str> = output.lines().collect();
-        let row = lines.iter().position(|l| l.contains("  a2 ")).expect("a2 row");
-        assert!(lines[row + 1].trim_end().ends_with("↑ merge: t1 Sample commit t1"), "{output}");
+        let row = lines
+            .iter()
+            .position(|l| l.contains("  a2 "))
+            .expect("a2 row");
+        assert!(
+            lines[row + 1]
+                .trim_end()
+                .ends_with("↑ merge: t1 Sample commit t1"),
+            "{output}"
+        );
     }
 }

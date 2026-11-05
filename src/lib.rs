@@ -23,11 +23,16 @@ use std::fmt;
 
 use dag::Dag;
 use render::{Color, NodeKind, RenderInput};
-use repo::{RepoView, Refs};
+use repo::{Refs, RepoView};
 use select::{Anchors, Mode};
 
 /// Reads refs and commits from `repo` and draws the graph.
-pub fn smartlog(repo: &impl RepoView, mode: Mode, color: Color, now: i64) -> anyhow::Result<String> {
+pub fn smartlog(
+    repo: &impl RepoView,
+    mode: Mode,
+    color: Color,
+    now: i64,
+) -> anyhow::Result<String> {
     let refs = repo.refs()?;
     let trunk_name = config::resolve_trunk_name(repo);
     let trunk = config::find_trunk(&refs, &trunk_name)?;
@@ -42,7 +47,14 @@ pub fn smartlog(repo: &impl RepoView, mode: Mode, color: Color, now: i64) -> any
 }
 
 /// The whole pipeline after loading: select → edges → order → lanes → render.
-pub fn draw(dag: &Dag, refs: &Refs, trunk: &CommitId, mode: Mode, color: Color, now: i64) -> String {
+pub fn draw(
+    dag: &Dag,
+    refs: &Refs,
+    trunk: &CommitId,
+    mode: Mode,
+    color: Color,
+    now: i64,
+) -> String {
     let anchors = Anchors::from_refs(refs, trunk.clone());
     let selection = select::select(dag, &anchors, mode);
     let edges = edges::build_edges(dag, &selection);
@@ -56,7 +68,12 @@ pub fn draw(dag: &Dag, refs: &Refs, trunk: &CommitId, mode: Mode, color: Color, 
 
     let mut kinds: HashMap<CommitId, NodeKind> = HashMap::new();
     kinds.extend(selection.trunk.iter().map(|c| (c.clone(), NodeKind::Trunk)));
-    kinds.extend(selection.unmerged.iter().map(|c| (c.clone(), NodeKind::Unmerged)));
+    kinds.extend(
+        selection
+            .unmerged
+            .iter()
+            .map(|c| (c.clone(), NodeKind::Unmerged)),
+    );
     if let Some(head) = &anchors.head {
         kinds.insert(head.clone(), NodeKind::Head);
     }
@@ -88,7 +105,11 @@ impl CommitId {
 
     /// Abbreviated form used in the graph (first 7 characters).
     pub fn short(&self) -> &str {
-        let end = self.0.char_indices().nth(7).map_or(self.0.len(), |(i, _)| i);
+        let end = self
+            .0
+            .char_indices()
+            .nth(7)
+            .map_or(self.0.len(), |(i, _)| i);
         &self.0[..end]
     }
 }

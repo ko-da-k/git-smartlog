@@ -33,7 +33,9 @@ pub fn find_trunk(refs: &Refs, name: &str) -> Result<CommitId, TrunkError> {
         .iter()
         .find(|(branch, _)| branch == name)
         .map(|(_, commit)| commit.clone())
-        .ok_or_else(|| TrunkError::NotFound { name: name.to_string() })
+        .ok_or_else(|| TrunkError::NotFound {
+            name: name.to_string(),
+        })
 }
 
 #[cfg(test)]
@@ -52,13 +54,23 @@ mod tests {
         }
     }
 
+    /// (case name, config entries, expected trunk name)
+    type Case = (
+        &'static str,
+        &'static [(&'static str, &'static str)],
+        &'static str,
+    );
+
     #[test]
     fn resolve_trunk_name_follows_priority() {
-        let cases: &[(&str, &[(&str, &str)], &str)] = &[
+        let cases: &[Case] = &[
             (
                 // Given: 両方の設定がある / When: 解決する / Then: smartlog.mainBranch が優先される
                 "smartlog.mainBranch wins",
-                &[("smartlog.mainBranch", "develop"), ("init.defaultBranch", "trunk")],
+                &[
+                    ("smartlog.mainBranch", "develop"),
+                    ("init.defaultBranch", "trunk"),
+                ],
                 "develop",
             ),
             (
@@ -98,7 +110,10 @@ mod tests {
                 // Given: main branch が t0 を指す / When: main を探す / Then: t0 が返る
                 "found",
                 Refs {
-                    head: Some(Head::Branch { name: "main".into(), commit: main_commit.clone() }),
+                    head: Some(Head::Branch {
+                        name: "main".into(),
+                        commit: main_commit.clone(),
+                    }),
                     local_branches: vec![("main".into(), main_commit.clone())],
                     ..Refs::default()
                 },
@@ -111,16 +126,22 @@ mod tests {
                     local_branches: vec![("feature-x".into(), CommitId::new("x1"))],
                     ..Refs::default()
                 },
-                Err(TrunkError::NotFound { name: "main".into() }),
+                Err(TrunkError::NotFound {
+                    name: "main".into(),
+                }),
             ),
             (
                 // Given: HEAD が main を指すがコミットがない（unborn） / When: main を探す / Then: NotFound
                 "unborn",
                 Refs {
-                    head: Some(Head::Unborn { name: "main".into() }),
+                    head: Some(Head::Unborn {
+                        name: "main".into(),
+                    }),
                     ..Refs::default()
                 },
-                Err(TrunkError::NotFound { name: "main".into() }),
+                Err(TrunkError::NotFound {
+                    name: "main".into(),
+                }),
             ),
             (
                 // Given: remote にだけ main がある / When: main を探す / Then: ローカルではないので NotFound
@@ -129,7 +150,9 @@ mod tests {
                     remote_branches: vec![("origin/main".into(), main_commit.clone())],
                     ..Refs::default()
                 },
-                Err(TrunkError::NotFound { name: "main".into() }),
+                Err(TrunkError::NotFound {
+                    name: "main".into(),
+                }),
             ),
         ];
 
