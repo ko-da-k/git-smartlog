@@ -19,7 +19,10 @@ pub enum Head {
 
 impl Head {
     pub fn commit(&self) -> Option<&CommitId> {
-        todo!()
+        match self {
+            Head::Branch { commit, .. } | Head::Detached(commit) => Some(commit),
+            Head::Unborn { .. } => None,
+        }
     }
 }
 
