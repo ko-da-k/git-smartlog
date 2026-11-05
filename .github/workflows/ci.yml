@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # One job per OS so the toolchain is installed once and reused by lint and test.
+  check:
+    strategy:
+      fail-fast: false
+      matrix:
+        # The e2e tests drive the `git` command and use GIT_CONFIG_GLOBAL=/dev/null,
+        # so they run on Unix-like systems only.
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # Installs the channel and components pinned in rust-toolchain.toml.
+      - run: rustup toolchain install
+      # Formatting and lints do not depend on the OS, so run them once.
+      - if: runner.os == 'Linux'
+        run: cargo fmt --check
+      - if: runner.os == 'Linux'
+        run: cargo clippy --all-targets --locked -- -D warnings
+      - run: cargo test --locked
