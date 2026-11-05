@@ -25,3 +25,8 @@ rustc-ice-*.txt
 
 # Local working files
 /tmp/
+
+
+# Added by cargo
+
+/target
