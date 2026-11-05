@@ -1,6 +1,6 @@
 # git-smartlog
 
-A jj-like commit graph for plain git repositories.
+jj-like commit graph for plain git repositories.
 
 ```
   ○  xxxxxxx (feature-x) Sample commit X
@@ -22,6 +22,16 @@ A jj-like commit graph for plain git repositories.
 - Splits lanes at branch boundaries, so each lane's top shows its branch name.
 - Uses only git refs and the commit graph. No dependency on jj or git-branchless.
 
+## Install
+
+Requires Rust 1.88 or later. Install a release from this repository (not published to crates.io):
+
+```sh
+cargo install --locked --git https://github.com/ko-da-k/git-smartlog --tag v0.1.0
+```
+
+Omit `--tag` to install the latest `main`.
+
 ## Usage
 
 ```sh
@@ -36,15 +46,14 @@ git smartlog --color always | less -R
 git config --global alias.sl smartlog
 ```
 
+In a repository set up with `git branchless init`, `alias.sl` runs git-branchless.
+Override it per repository with `git config --local alias.sl smartlog`.
+
 ## Configuration
 
 | Key | Default | Meaning |
 |---|---|---|
 | `smartlog.mainBranch` | `init.defaultBranch`, then `main` | Trunk branch |
-
-## Design
-
-See [ADR-0001](docs/adr/0001-jj-like-smartlog-on-plain-git.md).
 
 ## License
 

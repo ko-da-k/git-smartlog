@@ -2,9 +2,12 @@
 name = "git-smartlog"
 version = "0.1.0"
 edition = "2024"
+rust-version = "1.88"
 description = "A jj-like commit graph for plain git repositories"
 license = "MIT"
 repository = "https://github.com/ko-da-k/git-smartlog"
+# Installed from git (`cargo install --git`), never published to crates.io.
+publish = false
 
 [dependencies]
 anyhow = "1.0.104"
