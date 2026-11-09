@@ -20,7 +20,8 @@ struct TestRepo {
 }
 
 impl TestRepo {
-    fn init() -> Self {
+    /// An empty, unique directory (no repository yet).
+    fn empty() -> Self {
         static COUNTER: AtomicUsize = AtomicUsize::new(0);
         let dir = std::env::temp_dir().join(format!(
             "git-smartlog-e2e-{}-{}",
@@ -29,12 +30,24 @@ impl TestRepo {
         ));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).expect("create temp dir");
-        let repo = Self {
+        Self {
             dir,
             clock: std::cell::Cell::new(0),
-        };
+        }
+    }
+
+    fn init() -> Self {
+        let repo = Self::empty();
         repo.git(&["init", "--quiet", "--initial-branch=main"]);
         repo
+    }
+
+    /// `git clone --depth <depth>` of this repository into a new directory.
+    fn shallow_clone(&self, depth: usize) -> Self {
+        let clone = Self::empty();
+        let url = format!("file://{}", self.dir.display());
+        clone.git(&["clone", "--quiet", "--depth", &depth.to_string(), &url, "."]);
+        clone
     }
 
     fn path(&self) -> &Path {
@@ -252,6 +265,31 @@ fn recent_mode_shows_trunk_history_including_merged_commits() {
 │ ◆  a1 1m Sample commit a1
 ├─╯
 ◆  t0 1m Sample commit t0
+";
+    assert_eq!(actual, expected, "\n{actual}");
+}
+
+#[test]
+fn shallow_clone_treats_boundary_commits_as_roots() {
+    // Given: main に t0 ← t1 ← t2 がある repo を --depth 2 で clone した（t1 が shallow の境界で、t0 は手元にない）
+    let origin = TestRepo::init();
+    for name in ["t0", "t1", "t2"] {
+        origin.commit(name);
+    }
+    let repo = origin.shallow_clone(2);
+    let now = COMMIT_TIME + 100;
+
+    // When: 既定の limit（10 件）で、色なしで描く
+    let output =
+        smartlog(&repo.open(), Mode::Recent { limit: 10 }, Color::Never, now).expect("smartlog");
+
+    // Then: 失敗せず、境界の t1 が親のない最後の行として描かれ、手元にない t0 は現れない
+    let actual: String = with_names(&repo, &output)
+        .lines()
+        .map(|l| format!("{}\n", l.trim_end()))
+        .collect();
+    let expected = "@  t2 1m (ᐅ main, origin/main) Sample commit t2
+◆  t1 1m Sample commit t1
 ";
     assert_eq!(actual, expected, "\n{actual}");
 }

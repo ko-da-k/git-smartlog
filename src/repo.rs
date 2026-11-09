@@ -1,5 +1,6 @@
 //! Repository access. Only this module depends on gix.
 
+use std::collections::HashSet;
 use std::path::Path;
 
 use crate::CommitId;
@@ -139,17 +140,27 @@ impl RepoView for GixRepo {
         })
     }
 
+    /// In a shallow clone, commits on the shallow boundary are loaded without parents,
+    /// as `git log` does: their parent objects are not in the repository.
     fn load_dag(&self, heads: &[CommitId]) -> anyhow::Result<Dag> {
+        let shallow: HashSet<gix::ObjectId> = self
+            .repo
+            .shallow_commits()?
+            .map(|commits| commits.iter().copied().collect())
+            .unwrap_or_default();
         let mut dag = Dag::new();
         let mut stack: Vec<CommitId> = heads.to_vec();
         while let Some(id) = stack.pop() {
             if dag.contains(&id) {
                 continue;
             }
-            let commit = self
-                .repo
-                .find_commit(gix::ObjectId::from_hex(id.0.as_bytes())?)?;
-            let parents: Vec<CommitId> = commit.parent_ids().map(commit_id).collect();
+            let oid = gix::ObjectId::from_hex(id.0.as_bytes())?;
+            let commit = self.repo.find_commit(oid)?;
+            let parents: Vec<CommitId> = if shallow.contains(&oid) {
+                Vec::new()
+            } else {
+                commit.parent_ids().map(commit_id).collect()
+            };
             let meta = CommitMeta {
                 summary: commit.message()?.summary().to_string(),
                 time: commit.time()?.seconds,
