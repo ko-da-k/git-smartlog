@@ -273,7 +273,14 @@ mod tests {
         let refs = refs(&[("main", "t1"), ("stack-a", "a2")], "stack-a");
 
         // When: 色なしで描く
-        let output = draw(&dag, &refs, &id("t1"), Mode::Default, Color::Never, NOW);
+        let output = draw(
+            &dag,
+            &refs,
+            &id("t1"),
+            Mode::Recent { limit: 1 },
+            Color::Never,
+            NOW,
+        );
 
         // Then: HEAD の a2 は @、未マージの a1 は ○、trunk の t1 と分岐点 t0 は ◆
         assert_eq!(glyph_of(&output, "a2"), '@', "{output}");
@@ -295,7 +302,14 @@ mod tests {
         let refs = refs(&[("main", "t1"), ("stack-a", "a3")], "main");
 
         // When: 色なしで描く
-        let output = draw(&dag, &refs, &id("t1"), Mode::Default, Color::Never, NOW);
+        let output = draw(
+            &dag,
+            &refs,
+            &id("t1"),
+            Mode::Recent { limit: 1 },
+            Color::Never,
+            NOW,
+        );
 
         // Then: 縦線と空白だけの行（連結行）が1つもない
         assert!(
@@ -376,7 +390,14 @@ mod tests {
         refs.remote_branches = vec![("origin/main".into(), id("t1"))];
 
         // When: 色なしで描く
-        let output = draw(&dag, &refs, &id("t1"), Mode::Default, Color::Never, NOW);
+        let output = draw(
+            &dag,
+            &refs,
+            &id("t1"),
+            Mode::Recent { limit: 1 },
+            Color::Never,
+            NOW,
+        );
 
         // Then: ローカル branch（HEAD は ᐅ 付き）、worktree、タグ、remote の順に並ぶ
         assert!(
@@ -398,7 +419,14 @@ mod tests {
         refs.remote_branches = vec![("origin/main".into(), id("t1"))];
 
         // When: 色ありで描く
-        let output = draw(&dag, &refs, &id("t1"), Mode::Default, Color::Always, NOW);
+        let output = draw(
+            &dag,
+            &refs,
+            &id("t1"),
+            Mode::Recent { limit: 1 },
+            Color::Always,
+            NOW,
+        );
 
         // Then: git log --decorate と同じく、branch は緑、worktree はシアン、タグは黄、remote は赤（いずれも太字）
         let expected = "(\x1b[1;32mᐅ main\x1b[0m, \x1b[1;36mreview@\x1b[0m, \
@@ -413,7 +441,14 @@ mod tests {
         let refs = refs(&[("main", "t1")], "main");
 
         // When: 色ありで描く
-        let output = draw(&dag, &refs, &id("t1"), Mode::Default, Color::Always, NOW);
+        let output = draw(
+            &dag,
+            &refs,
+            &id("t1"),
+            Mode::Recent { limit: 1 },
+            Color::Always,
+            NOW,
+        );
 
         // Then: 経過時間は灰色（90）で、branch の緑とは別の色になる
         assert!(output.contains("\x1b[90m3d\x1b[0m"), "{output:?}");
@@ -431,7 +466,14 @@ mod tests {
         ];
 
         for (color, has_ansi) in cases {
-            let output = draw(&dag, &refs, &id("t1"), Mode::Default, color, NOW);
+            let output = draw(
+                &dag,
+                &refs,
+                &id("t1"),
+                Mode::Recent { limit: 1 },
+                color,
+                NOW,
+            );
 
             assert_eq!(output.contains('\x1b'), has_ansi, "{color:?}: {output}");
         }
@@ -450,7 +492,14 @@ mod tests {
         let refs = refs(&[("main", "t2"), ("stack-a", "a2")], "main");
 
         // When: 色なしで描く
-        let output = draw(&dag, &refs, &id("t2"), Mode::Default, Color::Never, NOW);
+        let output = draw(
+            &dag,
+            &refs,
+            &id("t2"),
+            Mode::Recent { limit: 1 },
+            Color::Never,
+            NOW,
+        );
 
         // Then: a2 の行のすぐ下に、取り込んだ t1 が ↑ merge: の行で書かれる
         let lines: Vec<&str> = output.lines().collect();

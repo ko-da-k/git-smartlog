@@ -3,11 +3,13 @@
 //! ```text
 //! unmerged    = ancestors(anchors) − ancestors(trunk)
 //! fork points = parents(unmerged) ∩ ancestors(trunk)
-//! displayed   = unmerged ∪ fork points ∪ trunk tip ∪ anchors on trunk   (Default)
-//!             + all ancestors of trunk                                  (All)
+//! recent      = newest `limit` ancestors of trunk, walked from the tip
+//! displayed   = unmerged ∪ fork points ∪ trunk tip ∪ anchors on trunk ∪ recent   (Recent)
+//!             + all ancestors of trunk                                          (All)
 //! ```
 
-use std::collections::HashSet;
+use std::cmp::Reverse;
+use std::collections::{BinaryHeap, HashSet};
 
 use crate::CommitId;
 use crate::dag::Dag;
@@ -15,8 +17,8 @@ use crate::repo::Refs;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Mode {
-    /// Only what relates to trunk and our own branches.
-    Default,
+    /// What relates to our own branches, plus the newest `limit` commits of trunk.
+    Recent { limit: usize },
     /// Also every ancestor of trunk (`--all`).
     All,
 }
@@ -100,12 +102,13 @@ pub fn select(dag: &Dag, anchors: &Anchors, mode: Mode) -> Selection {
 
     let trunk = match mode {
         Mode::All => trunk_ancestors,
-        Mode::Default => {
+        Mode::Recent { limit } => {
             let anchors_on_trunk = anchors.all().filter(|id| trunk_ancestors.contains(*id));
             std::iter::once(&anchors.trunk)
                 .chain(&fork_points)
                 .chain(anchors_on_trunk)
                 .cloned()
+                .chain(newest_ancestors(dag, &anchors.trunk, limit))
                 .collect()
         }
     };
@@ -115,6 +118,34 @@ pub fn select(dag: &Dag, anchors: &Anchors, mode: Mode) -> Selection {
         unmerged,
         fork_points,
     }
+}
+
+/// The newest `limit` ancestors of `head` (including `head`), like `git log -n <limit>`.
+///
+/// Walks from `head`, always taking the newest commit on the frontier, so every
+/// returned commit except `head` has a returned child even if commit times are skewed.
+fn newest_ancestors(dag: &Dag, head: &CommitId, limit: usize) -> Vec<CommitId> {
+    let key = |id: &CommitId| {
+        (
+            dag.meta(id).map_or(i64::MIN, |m| m.time),
+            Reverse(id.clone()),
+        )
+    };
+    let mut seen: HashSet<CommitId> = HashSet::from([head.clone()]);
+    let mut frontier = BinaryHeap::from([key(head)]);
+    let mut result = Vec::new();
+    while result.len() < limit {
+        let Some((_, Reverse(id))) = frontier.pop() else {
+            break;
+        };
+        for parent in dag.parents(&id) {
+            if seen.insert(parent.clone()) {
+                frontier.push(key(parent));
+            }
+        }
+        result.push(id);
+    }
+    result
 }
 
 #[cfg(test)]
@@ -140,7 +171,7 @@ mod tests {
         let anchors = anchors("t2", &["t2"], Some("t2"));
 
         // When: 既定のモードで選ぶ
-        let result = select(&dag, &anchors, Mode::Default);
+        let result = select(&dag, &anchors, Mode::Recent { limit: 1 });
 
         // Then: trunk の先端だけが表示され、未マージも分岐点もない
         assert_eq!(result.trunk, ids(&["t2"]));
@@ -160,7 +191,7 @@ mod tests {
         let anchors = anchors("t1", &["t1", "a2"], Some("a2"));
 
         // When: 既定のモードで選ぶ
-        let result = select(&dag, &anchors, Mode::Default);
+        let result = select(&dag, &anchors, Mode::Recent { limit: 1 });
 
         // Then: 未マージ a1, a2、分岐点 t0、trunk の先端 t1 が表示される
         assert_eq!(result.unmerged, ids(&["a1", "a2"]));
@@ -181,7 +212,7 @@ mod tests {
         let anchors = anchors("t2", &["t2", "a1", "b1"], Some("t2"));
 
         // When: 既定のモードで選ぶ
-        let result = select(&dag, &anchors, Mode::Default);
+        let result = select(&dag, &anchors, Mode::Recent { limit: 1 });
 
         // Then: それぞれの分岐点 t0, t1 が表示される
         assert_eq!(result.unmerged, ids(&["a1", "b1"]));
@@ -202,7 +233,7 @@ mod tests {
         let anchors = anchors("t1", &["t1", "a2", "b1"], Some("b1"));
 
         // When: 既定のモードで選ぶ
-        let result = select(&dag, &anchors, Mode::Default);
+        let result = select(&dag, &anchors, Mode::Recent { limit: 1 });
 
         // Then: a と b の両方が未マージで、分岐点は t0 だけ（a2 は未マージなので分岐点にならない）
         assert_eq!(result.unmerged, ids(&["a1", "a2", "b1"]));
@@ -216,7 +247,7 @@ mod tests {
         let anchors = anchors("t1", &["t1"], Some("x1"));
 
         // When: 既定のモードで選ぶ
-        let result = select(&dag, &anchors, Mode::Default);
+        let result = select(&dag, &anchors, Mode::Recent { limit: 1 });
 
         // Then: x1 は未マージとして表示され、分岐点 t0 も表示される
         assert_eq!(result.unmerged, ids(&["x1"]));
@@ -230,7 +261,7 @@ mod tests {
         let anchors = anchors("t2", &["t2"], Some("t0"));
 
         // When: 既定のモードで選ぶ
-        let result = select(&dag, &anchors, Mode::Default);
+        let result = select(&dag, &anchors, Mode::Recent { limit: 1 });
 
         // Then: t0 は trunk 側の起点として表示され、間の t1 は表示されない
         assert_eq!(result.trunk, ids(&["t0", "t2"]));
@@ -244,7 +275,7 @@ mod tests {
         let anchors = anchors("t1", &["t1", "a1"], Some("t1"));
 
         // When: 既定のモードで選ぶ
-        let result = select(&dag, &anchors, Mode::Default);
+        let result = select(&dag, &anchors, Mode::Recent { limit: 1 });
 
         // Then: a1 は未マージにならず、trunk 側の起点として表示される
         assert!(result.unmerged.is_empty());
@@ -264,12 +295,94 @@ mod tests {
         let anchors = anchors("t2", &["t2", "a2"], Some("a2"));
 
         // When: 既定のモードで選ぶ
-        let result = select(&dag, &anchors, Mode::Default);
+        let result = select(&dag, &anchors, Mode::Recent { limit: 1 });
 
         // Then: 最初に切った t0 と、取り込んだ t1 の両方が分岐点になる
         assert_eq!(result.unmerged, ids(&["a1", "a2"]));
         assert_eq!(result.fork_points, ids(&["t0", "t1"]));
         assert_eq!(result.trunk, ids(&["t0", "t1", "t2"]));
+    }
+
+    #[test]
+    fn recent_mode_shows_newest_trunk_commits_up_to_limit() {
+        // Given: trunk t0 ← t1 ← m（m は t1 と、取り込み済みの a1 のマージ）、未マージの branch はない
+        let dag = dag(&[
+            ("t0", &[]),
+            ("t1", &["t0"]),
+            ("a1", &["t0"]),
+            ("m", &["t1", "a1"]),
+        ]);
+        let anchors = anchors("m", &["m"], Some("m"));
+
+        // When: 直近 3 件に絞って選ぶ
+        let result = select(&dag, &anchors, Mode::Recent { limit: 3 });
+
+        // Then: 両方の親を辿り、新しい順に m, a1, t1 が表示され、最も古い t0 は表示されない
+        assert_eq!(result.trunk, ids(&["m", "a1", "t1"]));
+        assert!(result.unmerged.is_empty());
+    }
+
+    #[test]
+    fn recent_mode_limit_boundaries() {
+        // 直列の trunk t0 ← t1 ← t2、未マージの branch はない
+        let cases: &[(&str, usize, &[&str])] = &[
+            // Given: limit が trunk の commit 数より大きい / When: 選ぶ / Then: root の t0 まで全部表示される
+            ("limit exceeds history", 10, &["t0", "t1", "t2"]),
+            // Given: limit が trunk の commit 数と同じ / When: 選ぶ / Then: 全部表示される
+            ("limit equals history", 3, &["t0", "t1", "t2"]),
+            // Given: limit が 0 / When: 選ぶ / Then: trunk の先端だけは必ず表示される
+            ("zero limit keeps tip", 0, &["t2"]),
+        ];
+
+        for (name, limit, expected) in cases {
+            let dag = dag(&[("t0", &[]), ("t1", &["t0"]), ("t2", &["t1"])]);
+            let anchors = anchors("t2", &["t2"], Some("t2"));
+
+            let result = select(&dag, &anchors, Mode::Recent { limit: *limit });
+
+            assert_eq!(result.trunk, ids(expected), "case: {name}");
+        }
+    }
+
+    #[test]
+    fn recent_mode_limit_never_hides_branches_fork_points_or_head() {
+        // Given: trunk t0 ← t1 ← t2 ← t3。stack-a（a1 ← a2）は古い t0 から切り、HEAD は t1 にある
+        let dag = dag(&[
+            ("t0", &[]),
+            ("a1", &["t0"]),
+            ("a2", &["a1"]),
+            ("t1", &["t0"]),
+            ("t2", &["t1"]),
+            ("t3", &["t2"]),
+        ]);
+        let anchors = anchors("t3", &["t3", "a2"], Some("t1"));
+
+        // When: 直近 1 件に絞って選ぶ
+        let result = select(&dag, &anchors, Mode::Recent { limit: 1 });
+
+        // Then: 未マージの a1, a2、分岐点 t0、HEAD の t1 は limit の外でも表示され、間の t2 は表示されない
+        assert_eq!(result.unmerged, ids(&["a1", "a2"]));
+        assert_eq!(result.trunk, ids(&["t0", "t1", "t3"]));
+    }
+
+    #[test]
+    fn recent_mode_follows_parents_even_if_commit_times_are_skewed() {
+        // Given: t0 ← t1 ← t2 だが、t1 の commit time が t0 より古い（時計のずれ）
+        let mut dag = Dag::new();
+        let meta = |time| crate::dag::CommitMeta {
+            summary: String::new(),
+            time,
+        };
+        dag.insert(id("t0"), vec![], meta(10));
+        dag.insert(id("t1"), vec![id("t0")], meta(5));
+        dag.insert(id("t2"), vec![id("t1")], meta(20));
+        let anchors = anchors("t2", &["t2"], Some("t2"));
+
+        // When: 直近 2 件に絞って選ぶ
+        let result = select(&dag, &anchors, Mode::Recent { limit: 2 });
+
+        // Then: 時刻順の t0 ではなく、親を辿った t1 が選ばれ、表示が途切れない
+        assert_eq!(result.trunk, ids(&["t1", "t2"]));
     }
 
     #[test]
@@ -313,7 +426,11 @@ mod tests {
         };
 
         // When: refs から起点を作り、既定のモードで選ぶ
-        let result = select(&dag, &Anchors::from_refs(&refs, id("t1")), Mode::Default);
+        let result = select(
+            &dag,
+            &Anchors::from_refs(&refs, id("t1")),
+            Mode::Recent { limit: 1 },
+        );
 
         // Then: r1 と v1 は表示対象にならない
         assert!(!result.contains(&id("r1")));
@@ -345,7 +462,11 @@ mod tests {
         };
 
         // When: refs から起点を作り、既定のモードで選ぶ
-        let result = select(&dag, &Anchors::from_refs(&refs, id("t1")), Mode::Default);
+        let result = select(
+            &dag,
+            &Anchors::from_refs(&refs, id("t1")),
+            Mode::Recent { limit: 1 },
+        );
 
         // Then: w1 は未マージとして表示され、unborn の worktree は何も足さない
         assert_eq!(result.unmerged, ids(&["w1"]));

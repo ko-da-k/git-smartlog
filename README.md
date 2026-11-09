@@ -18,7 +18,7 @@ jj-like commit graph for plain git repositories.
 ```
 
 - Newest first, no connector-only lines, like `jj log`.
-- Shows trunk and your own branches: unmerged commits (`○`), the trunk commits they were cut from (`◆`), and HEAD (`@`).
+- Shows your own branches and recent trunk history: unmerged commits (`○`), the trunk commits they were cut from (`◆`), the newest trunk commits (`◆`, 10 by default), and HEAD (`@`).
 - Splits lanes at branch boundaries, so each lane's top shows its branch name.
 - Uses only git refs and the commit graph. No dependency on jj or git-branchless.
 
@@ -35,8 +35,9 @@ Omit `--tag` to install the latest `main`.
 ## Usage
 
 ```sh
-git smartlog            # trunk and your branches
-git smartlog --all      # also every ancestor of trunk
+git smartlog            # your branches and the newest 10 trunk commits
+git smartlog --limit 3  # only the newest 3 trunk commits (-n 3)
+git smartlog --all      # every ancestor of trunk (-a)
 git smartlog --color always | less -R
 ```
 

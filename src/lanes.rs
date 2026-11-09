@@ -60,7 +60,7 @@ pub(crate) mod testing {
             head: Some(id(trunk)),
             worktree_heads: vec![],
         };
-        select(dag, &anchors, Mode::Default)
+        select(dag, &anchors, Mode::Recent { limit: 1 })
     }
 
     pub fn heads(branches: &[&str]) -> HashSet<CommitId> {

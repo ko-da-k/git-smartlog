@@ -39,8 +39,9 @@ Accepted
 ```
 unmerged    = ancestors(anchors) − ancestors(trunk)
 fork points = parents(unmerged) ∩ ancestors(trunk)
-displayed   = unmerged ∪ fork points ∪ trunk tip ∪ anchors on trunk   (default)
-            + all ancestors of trunk                                  (--all)
+recent      = newest N ancestors of trunk, walked from the tip       (N = --limit, default 10)
+displayed   = unmerged ∪ fork points ∪ trunk tip ∪ anchors on trunk ∪ recent   (default)
+            + all ancestors of trunk                                          (--all)
 ```
 
 - Remote branches and tags are labels only; they do not affect the displayed set.
@@ -137,7 +138,7 @@ The reference is the second line of the row's message, so renderdag draws it bes
 
 ```
 src/
-  main.rs     CLI (clap): --all, --color auto|always|never
+  main.rs     CLI (clap): --all/-a, --limit/-n, --color auto|always|never
   config.rs   resolve trunk
   repo.rs     trait RepoView (thin layer over gix) + GixRepo
   dag.rs      oid → parents map, ancestor helpers

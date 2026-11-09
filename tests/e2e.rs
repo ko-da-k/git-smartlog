@@ -97,7 +97,12 @@ fn unborn_trunk_is_reported_with_a_fix() {
     let repo = TestRepo::init();
 
     // When: smartlog を実行する
-    let result = smartlog(&repo.open(), Mode::Default, Color::Never, COMMIT_TIME);
+    let result = smartlog(
+        &repo.open(),
+        Mode::Recent { limit: 1 },
+        Color::Never,
+        COMMIT_TIME,
+    );
 
     // Then: trunk の main が見つからないことと、設定方法を伝えるエラーになる
     let message = result.expect_err("should fail").to_string();
@@ -208,4 +213,45 @@ fn git_smartlog_runs_binary_on_path_before_alias() {
     );
     assert!(!stdout.contains("from-alias"), "{stdout}");
     assert!(stdout.contains("Sample commit t0"), "{stdout}");
+}
+
+#[test]
+fn recent_mode_shows_trunk_history_including_merged_commits() {
+    // Given: main に initial commit t0 があり、feature（a1 ← a2）を --no-ff でマージした（m）。
+    //        未マージの branch はなく、HEAD は main
+    let repo = TestRepo::init();
+    repo.commit("t0");
+    repo.git(&["switch", "--quiet", "-c", "feature"]);
+    repo.commit("a1");
+    repo.commit("a2");
+    repo.git(&["switch", "--quiet", "main"]);
+    repo.clock.set(repo.clock.get() + 1);
+    repo.git(&[
+        "merge",
+        "--quiet",
+        "--no-ff",
+        "-m",
+        "Sample commit m",
+        "feature",
+    ]);
+    repo.git(&["branch", "--quiet", "-d", "feature"]);
+    let now = COMMIT_TIME + 100;
+
+    // When: 既定の limit（10 件）で、色なしで描く
+    let output =
+        smartlog(&repo.open(), Mode::Recent { limit: 10 }, Color::Never, now).expect("smartlog");
+
+    // Then: マージ m、取り込まれた a2, a1、initial commit t0 がすべて trunk として表示される
+    let actual: String = with_names(&repo, &output)
+        .lines()
+        .map(|l| format!("{}\n", l.trim_end()))
+        .collect();
+    let expected = "@    m 1m (ᐅ main) Sample commit m
+├─╮
+│ ◆  a2 1m Sample commit a2
+│ ◆  a1 1m Sample commit a1
+├─╯
+◆  t0 1m Sample commit t0
+";
+    assert_eq!(actual, expected, "\n{actual}");
 }
