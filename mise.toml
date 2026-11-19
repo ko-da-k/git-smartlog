@@ -1,0 +1,5 @@
+[tools]
+zizmor = "1.32.0"
+
+[settings]
+lockfile = true

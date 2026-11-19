@@ -5,15 +5,19 @@ on:
     branches: [main]
   pull_request:
 
-permissions:
-  contents: read
+permissions: {}
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  # One job per OS so the toolchain is installed once and reused by lint and test.
   check:
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
@@ -22,7 +26,11 @@ jobs:
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
+      # The e2e tests only clone local repositories over file://, so they never
+      # need the job token that checkout would otherwise leave in .git/config.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       # Installs the channel and components pinned in rust-toolchain.toml.
       - run: rustup toolchain install
       # Formatting and lints do not depend on the OS, so run them once.
@@ -31,3 +39,17 @@ jobs:
       - if: runner.os == 'Linux'
         run: cargo clippy --all-targets --locked -- -D warnings
       - run: cargo test --locked
+
+  workflows:
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: jdx/mise-action@90f833d396d0cc3674b631d2d225e306476c303a # v5.2.10
+
+      - name: zizmor
+        run: mise exec -- zizmor --no-online-audits --collect=default,dependabot .
