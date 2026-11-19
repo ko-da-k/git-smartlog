@@ -1,0 +1,18 @@
+pre-commit:
+  parallel: true
+  jobs:
+    - name: cargo fmt
+      glob: "{*.rs,rust-toolchain.toml}"
+      run: cargo fmt --check
+
+    - name: cargo clippy
+      glob: "{*.rs,Cargo.toml,Cargo.lock,rust-toolchain.toml}"
+      run: cargo clippy --all-targets --locked -- -D warnings
+
+    - name: cargo test
+      glob: "{*.rs,Cargo.toml,Cargo.lock,rust-toolchain.toml}"
+      run: cargo test --locked
+
+    - name: zizmor
+      glob: "{.github/**,mise.toml,mise.lock}"
+      run: mise exec -- zizmor --no-online-audits --collect=default,dependabot .
