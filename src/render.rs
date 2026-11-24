@@ -2,7 +2,10 @@
 
 use std::collections::HashMap;
 
-use renderdag::{Ancestor, GraphRowRenderer, Renderer};
+use renderdag::Ancestor;
+use renderdag::pipeline::row_shape_to_prefix_lines::box_drawing::Curved;
+use renderdag::pipeline::types::{GraphRowShape, PrefixLine, PrefixLineKind};
+use renderdag::pipeline::{BoxDrawing, GraphTextRenderer, PrefixLineRenderer};
 
 use crate::CommitId;
 use crate::dag::Dag;
@@ -55,10 +58,10 @@ pub struct RenderInput<'a> {
 }
 
 pub fn render(input: &RenderInput<'_>, color: Color) -> String {
-    let mut renderer = GraphRowRenderer::new()
-        .output()
-        .with_min_row_height(0)
-        .build_box_drawing();
+    let mut renderer = GraphTextRenderer::with_prefix_lines(Box::new(CompactAncestry(
+        BoxDrawing::<Curved>::new(),
+    )))
+    .configure(|options| options.min_row_height = 0);
     let paint = Painter(color);
     let mut out = String::new();
 
@@ -70,9 +73,24 @@ pub fn render(input: &RenderInput<'_>, color: Color) -> String {
         let kind = input.kinds[id];
         let glyph = paint.glyph(kind);
         let message = row_message(input, id, kind, &paint);
-        out.push_str(&renderer.next_row(id.clone(), parents, glyph, message));
+        renderer.write_next_text(&mut out, id.clone(), parents, &glyph, &message);
     }
     out
+}
+
+/// Box drawing without the mandatory `╷` line that renderdag 0.2 adds under every
+/// row next to an ancestor edge, keeping rows as compact as 0.1 drew them.
+///
+/// The repeatable `PostAncestry` line still draws `╷`, so a multi-line message
+/// keeps the dashed column on its extra lines.
+struct CompactAncestry<P>(P);
+
+impl<N, P: PrefixLineRenderer<N>> PrefixLineRenderer<N> for CompactAncestry<P> {
+    fn next_prefix_lines(&mut self, row_shape: &GraphRowShape<N>) -> Vec<PrefixLine> {
+        let mut lines = self.0.next_prefix_lines(row_shape);
+        lines.retain(|line| line.kind != PrefixLineKind::Ancestry);
+        lines
+    }
 }
 
 /// Labels per commit from repository refs, in display order:
@@ -368,6 +386,81 @@ mod tests {
 │ ○  a2 3d Sample commit a2
 │ ○  a1 3d Sample commit a1
 ├─╯
+◆  t0 3d Sample commit t0
+";
+        let actual: String = output
+            .lines()
+            .map(|l| format!("{}\n", l.trim_end()))
+            .collect();
+        assert_eq!(actual, expected, "\n{actual}");
+    }
+
+    #[test]
+    fn no_extra_lines_beside_ancestor_edge() {
+        // Given: t0 から stack-a（a1 ← a2）を切り、trunk は t0 ← t1 ← t2 ← t3 と進んだ。HEAD は main
+        let dag = dag(&[
+            ("t0", &[]),
+            ("a1", &["t0"]),
+            ("a2", &["a1"]),
+            ("t1", &["t0"]),
+            ("t2", &["t1"]),
+            ("t3", &["t2"]),
+        ]);
+        let refs = refs(&[("main", "t3"), ("stack-a", "a2")], "main");
+
+        // When: 直近 1 件だけ（t1, t2 は省略され、t3 から t0 へは ╷ の辺になる）、色なしで描く
+        let output = draw(
+            &dag,
+            &refs,
+            &id("t3"),
+            Mode::Recent { limit: 1 },
+            Color::Never,
+            NOW,
+        );
+
+        // Then: ╷ と並走する行の間に、余分な行が挟まらない
+        let expected = "@  t3 3d (ᐅ main) Sample commit t3
+╷ ○  a2 3d (stack-a) Sample commit a2
+╷ ○  a1 3d Sample commit a1
+╭─╯
+◆  t0 3d Sample commit t0
+";
+        let actual: String = output
+            .lines()
+            .map(|l| format!("{}\n", l.trim_end()))
+            .collect();
+        assert_eq!(actual, expected, "\n{actual}");
+    }
+
+    #[test]
+    fn merge_line_beside_ancestor_edge_keeps_dashed_column() {
+        // Given: stack-a の a2 は a1 と分岐点 t0 のマージで、trunk は t0 ← t1 ← t2 ← t3 と進んだ。HEAD は main
+        let dag = dag(&[
+            ("t0", &[]),
+            ("a1", &["t0"]),
+            ("a2", &["a1", "t0"]),
+            ("t1", &["t0"]),
+            ("t2", &["t1"]),
+            ("t3", &["t2"]),
+        ]);
+        let refs = refs(&[("main", "t3"), ("stack-a", "a2")], "main");
+
+        // When: 直近 1 件だけ（t3 から t0 へは ╷ の辺になる）、色なしで描く
+        let output = draw(
+            &dag,
+            &refs,
+            &id("t3"),
+            Mode::Recent { limit: 1 },
+            Color::Never,
+            NOW,
+        );
+
+        // Then: ↑ merge: の行は ╷ を引き継いだ 1 行だけで、余分な行は挟まらない
+        let expected = "@  t3 3d (ᐅ main) Sample commit t3
+╷ ○  a2 3d (stack-a) Sample commit a2
+╷ │  ↑ merge: t0 Sample commit t0
+╷ ○  a1 3d Sample commit a1
+╭─╯
 ◆  t0 3d Sample commit t0
 ";
         let actual: String = output
